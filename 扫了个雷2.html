@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>扫了个雷</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=ZCOOL+XiaoWei&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0a0a0f;--surface:#111118;--surface2:#1a1a24;--surface3:#222230;--border:#2a2a3a;--accent:#e63946;--accent2:#ff6b6b;--gold:#ffd700;--safe:#4ecca3;--text:#e8e8f0;--text2:#8888aa;--shadow:rgba(230,57,70,0.3);--glow-safe:rgba(78,204,163,0.4)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Share Tech Mono',monospace;min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.03) 2px,rgba(0,0,0,0.03) 4px);pointer-events:none;z-index:9999}
+.screen{display:none}.screen.active{display:flex;flex-direction:column}
+#gameScreen{min-height:100vh;flex-direction:column}
+.game-header{background:var(--surface);border-bottom:1px solid var(--border);padding:0.75rem 1.5rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;position:sticky;top:0;z-index:100;backdrop-filter:blur(10px)}
+.header-left{display:flex;align-items:center;gap:1rem}
+.back-btn{background:none;border:1px solid var(--border);color:var(--text2);padding:0.4rem 0.8rem;border-radius:4px;cursor:pointer;font-family:inherit;font-size:0.8rem;transition:all 0.2s}
+.back-btn:hover{border-color:var(--text);color:var(--text)}
+.game-title-small{font-family:'ZCOOL XiaoWei',serif;font-size:1.2rem;color:var(--text2)}
+.level-badge{font-size:0.7rem;padding:0.2rem 0.6rem;border-radius:20px;letter-spacing:0.1em}
+.level-badge.easy{background:rgba(78,204,163,0.15);border:1px solid rgba(78,204,163,0.4);color:var(--safe)}
+.level-badge.hard{background:rgba(230,57,70,0.15);border:1px solid rgba(230,57,70,0.4);color:var(--accent2)}
+.header-stats{display:flex;gap:1.5rem;align-items:center}
+.stat-item{text-align:center}
+.stat-label{font-size:0.6rem;color:var(--text2);letter-spacing:0.1em;display:block;margin-bottom:0.1rem}
+.stat-value{font-size:1rem;color:var(--text);font-weight:bold}
+.stat-value.red{color:var(--accent)}.stat-value.green{color:var(--safe)}.stat-value.gold{color:var(--gold)}
+.header-right{display:flex;align-items:center;gap:0.75rem}
+.action-btn{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:0.5rem 1rem;border-radius:4px;cursor:pointer;font-family:inherit;font-size:0.8rem;transition:all 0.2s}
+.action-btn:hover{background:var(--surface3);border-color:var(--text2)}
+.action-btn.danger:hover{border-color:var(--accent);color:var(--accent)}
+.progress-bar-wrap{background:var(--surface);border-bottom:1px solid var(--border);padding:0.4rem 1.5rem;display:flex;align-items:center;gap:1rem}
+.progress-bar-track{flex:1;height:6px;background:var(--surface3);border-radius:3px;overflow:hidden}
+.progress-bar-fill{height:100%;background:linear-gradient(90deg,var(--safe),#7fffd4);border-radius:3px;transition:width 0.3s ease;position:relative}
+.progress-bar-fill::after{content:'';position:absolute;right:0;top:0;height:100%;width:20px;background:rgba(255,255,255,0.4);filter:blur(4px)}
+.progress-pct{font-size:0.8rem;color:var(--safe);min-width:3.5rem;text-align:right}
+.game-area{flex:1;overflow:auto;padding:1rem;background:var(--bg);cursor:crosshair}
+#boardCanvas{display:block;cursor:crosshair;image-rendering:pixelated}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:1000;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.modal-overlay.active{display:flex}
+.modal-box{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:2.5rem;max-width:480px;width:90%;text-align:center;position:relative;animation:modalIn 0.3s cubic-bezier(0.34,1.56,0.64,1)}
+@keyframes modalIn{from{transform:scale(0.8) translateY(20px);opacity:0}to{transform:scale(1) translateY(0);opacity:1}}
+.modal-icon{font-size:4rem;margin-bottom:1rem;animation:iconShake 0.5s ease}
+@keyframes iconShake{0%,100%{transform:rotate(0deg)}20%{transform:rotate(-10deg)}40%{transform:rotate(10deg)}60%{transform:rotate(-6deg)}80%{transform:rotate(6deg)}}
+.modal-title{font-family:'ZCOOL XiaoWei',serif;font-size:1.8rem;margin-bottom:0.75rem}
+.modal-title.danger{color:var(--accent)}.modal-title.success{color:var(--gold)}
+.modal-taunt{background:var(--surface2);border-left:3px solid var(--accent);padding:1rem 1.25rem;border-radius:0 6px 6px 0;margin:1rem 0;font-size:0.9rem;line-height:1.7;color:var(--text2);text-align:left}
+.modal-taunt.success-taunt{border-left-color:var(--gold);color:var(--gold)}
+.modal-stats-mini{display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin:1rem 0}
+.mini-stat{background:var(--surface2);border-radius:6px;padding:0.75rem}
+.mini-stat-label{font-size:0.65rem;color:var(--text2);letter-spacing:0.1em;display:block;margin-bottom:0.25rem}
+.mini-stat-value{font-size:1.1rem;color:var(--text)}
+.modal-btns{display:flex;gap:0.75rem;justify-content:center;margin-top:1.5rem;flex-wrap:wrap}
+.btn-primary{background:var(--accent);color:white;border:none;padding:0.75rem 2rem;border-radius:6px;cursor:pointer;font-family:inherit;font-size:0.9rem;font-weight:bold;letter-spacing:0.05em;transition:all 0.2s}
+.btn-primary:hover{background:var(--accent2);transform:translateY(-1px);box-shadow:0 4px 15px var(--shadow)}
+.btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:0.75rem 1.5rem;border-radius:6px;cursor:pointer;font-family:inherit;font-size:0.9rem;transition:all 0.2s}
+.btn-secondary:hover{border-color:var(--text2)}
+#statsScreen{min-height:100vh;flex-direction:column}
+.stats-header{background:var(--surface);border-bottom:1px solid var(--border);padding:1rem 1.5rem;display:flex;align-items:center;gap:1rem}
+.stats-content{flex:1;padding:2rem;max-width:800px;margin:0 auto;width:100%}
+.stats-section{margin-bottom:2rem}
+.stats-section-title{font-family:'ZCOOL XiaoWei',serif;font-size:1.1rem;color:var(--text2);letter-spacing:0.1em;margin-bottom:1rem;padding-bottom:0.5rem;border-bottom:1px solid var(--border)}
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:0.75rem}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1rem}
+.stat-card-label{font-size:0.65rem;color:var(--text2);letter-spacing:0.1em;display:block;margin-bottom:0.5rem;line-height:1.4}
+.stat-card-value{font-size:1.4rem;color:var(--text)}
+.stat-card-value.accent{color:var(--accent)}.stat-card-value.safe{color:var(--safe)}.stat-card-value.gold{color:var(--gold)}
+.heatmap-wrap{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1rem;overflow:auto}
+#heatmapCanvas{display:block;max-width:100%}
+.stats-taunt{background:#1e0a0a;border:1px solid rgba(230,57,70,0.2);border-left:3px solid var(--accent);border-radius:0 8px 8px 0;padding:1rem 1.25rem;margin-bottom:2rem;font-size:0.9rem;color:var(--accent2);line-height:1.7}
+.toast{position:fixed;bottom:2rem;left:50%;transform:translateX(-50%) translateY(100px);background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0.75rem 1.5rem;font-size:0.85rem;color:var(--text);z-index:2000;transition:transform 0.3s cubic-bezier(0.34,1.56,0.64,1);max-width:400px;text-align:center;pointer-events:none}
+.toast.show{transform:translateX(-50%) translateY(0)}
+.explosion-overlay{display:none;position:fixed;inset:0;z-index:500;pointer-events:none}
+.explosion-overlay.active{display:block;animation:explode 0.4s ease-out forwards}
+@keyframes explode{0%{background:transparent}10%{background:rgba(230,57,70,0.6)}100%{background:transparent}}
+.level-cards{display:flex;gap:1.5rem;flex-wrap:wrap;justify-content:center}
+.level-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1.5rem 2rem;cursor:pointer;transition:all 0.3s ease;text-align:center;min-width:200px;position:relative;overflow:hidden}
+.level-card::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,transparent 0%,rgba(255,255,255,0.02) 100%)}
+.level-card:hover{border-color:var(--accent);transform:translateY(-4px);box-shadow:0 8px 30px var(--shadow)}
+.level-card.easy:hover{border-color:var(--safe);box-shadow:0 8px 30px var(--glow-safe)}
+.level-card .card-title{font-family:'ZCOOL XiaoWei',serif;font-size:1.2rem;margin:0}
+.level-card.easy .card-title{color:var(--safe)}.level-card.hard .card-title{color:var(--accent)}
+::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:var(--surface)}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}::-webkit-scrollbar-thumb:hover{background:var(--text2)}
+@media(max-width:600px){.header-stats{gap:0.75rem}.stat-value{font-size:0.85rem}.modal-box{padding:1.5rem}}
+</style>
+</head>
+<body>
+
+<div id="gameScreen" class="screen active">
+  <div class="game-header">
+    <div class="header-left">
+      <button class="back-btn" onclick="openMenu()">☰ 菜单</button>
+      <span class="game-title-small">扫了个雷</span>
+      <span class="level-badge" id="levelBadge">第一关</span>
+    </div>
+    <div class="header-stats">
+      <div class="stat-item"><span class="stat-label">地雷剩余</span><span class="stat-value red" id="mineCounter">3</span></div>
+      <div class="stat-item"><span class="stat-label">已翻格子</span><span class="stat-value green" id="openedCounter">0</span></div>
+      <div class="stat-item"><span class="stat-label">本局用时</span><span class="stat-value" id="timerDisplay">00:00</span></div>
+      <div class="stat-item"><span class="stat-label">重开次数</span><span class="stat-value gold" id="restartCounter">0</span></div>
+    </div>
+    <div class="header-right">
+      <button class="action-btn" onclick="showStatsFromGame()">📊 战绩</button>
+      <button class="action-btn danger" onclick="restartGame()">🔄 重开</button>
+    </div>
+  </div>
+  <div class="progress-bar-wrap">
+    <span style="font-size:0.7rem;color:var(--text2);white-space:nowrap">进度</span>
+    <div class="progress-bar-track"><div class="progress-bar-fill" id="progressFill" style="width:0%"></div></div>
+    <span class="progress-pct" id="progressPct">0.00%</span>
+  </div>
+  <div class="game-area" id="gameArea"><canvas id="boardCanvas"></canvas></div>
+</div>
+
+<div id="statsScreen" class="screen">
+  <div class="stats-header">
+    <button class="back-btn" id="statsBackBtn">← 返回</button>
+    <span style="font-family:'ZCOOL XiaoWei',serif;font-size:1.2rem">战绩统计</span>
+  </div>
+  <div class="stats-content">
+    <div class="stats-taunt" id="statsTaunt">加载中...</div>
+    <div class="stats-section">
+      <div class="stats-section-title">第二关 · 永久记录</div>
+      <div class="stats-grid" id="statsGrid"></div>
+    </div>
+    <div class="stats-section">
+      <div class="stats-section-title">踩雷热区分布（第二关）</div>
+      <div class="heatmap-wrap"><canvas id="heatmapCanvas" width="300" height="200"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- 菜单 -->
+<div class="modal-overlay" id="menuModal">
+  <div class="modal-box" style="max-width:360px">
+    <div style="font-family:'ZCOOL XiaoWei',serif;font-size:1.8rem;margin-bottom:1.5rem;color:var(--text)">💣 扫了个雷</div>
+    <div class="level-cards" style="flex-direction:column;gap:0.75rem">
+      <div class="level-card easy" onclick="menuStartGame(1)" style="min-width:unset;padding:1rem 1.5rem"><div class="card-title">第一关</div></div>
+      <div class="level-card hard" id="menuLevel2Card" style="min-width:unset;padding:1rem 1.5rem"><div class="card-title" id="menuLevel2Title">第二关</div></div>
+      <div class="level-card" onclick="menuShowStats()" style="min-width:unset;padding:1rem 1.5rem;border-style:dashed;opacity:0.8"><div class="card-title" style="color:var(--text2)">战绩统计</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- 踩雷弹窗 -->
+<div class="modal-overlay" id="deathModal">
+  <div class="modal-box">
+    <div class="modal-icon">💥</div>
+    <div class="modal-title danger" id="deathTitle">踩雷了</div>
+    <div class="modal-taunt" id="deathTaunt"></div>
+    <div class="modal-stats-mini" id="deathStats"></div>
+    <div class="modal-btns">
+      <button class="btn-primary" onclick="confirmRestart()">再来一局</button>
+      <button class="btn-secondary" onclick="closeDeathModal()">查看棋盘</button>
+    </div>
+  </div>
+</div>
+
+<!-- 通关弹窗 -->
+<div class="modal-overlay" id="winModal">
+  <div class="modal-box">
+    <div class="modal-icon">🏆</div>
+    <div class="modal-title success" id="winTitle">通关！</div>
+    <div class="modal-taunt success-taunt" id="winTaunt"></div>
+    <div class="modal-stats-mini" id="winStats"></div>
+    <div class="modal-btns" id="winBtns"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="explosion-overlay" id="explosionOverlay"></div>
+
+<script>
+const STORAGE_KEY='saolegel_v3';
+function loadData(){try{const r=localStorage.getItem(STORAGE_KEY);if(r)return JSON.parse(r)}catch(e){}return{totalAttempts:0,totalDeaths:0,bestOpenedCells:0,bestProgress:0,longestTime:0,maxConsecutiveRestarts:0,currentConsecutiveRestarts:0,totalFlags:0,totalPlayTime:0,level1Cleared:false,level2Cleared:false,deathMap:[]}}
+function saveData(d){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(d))}catch(e){}}
+let persistData=loadData();
+
+let currentLevel=1,board=[],rows=0,cols=0,totalMines=0,opened=0,flagged=0,totalSafe=0;
+let gameOver=false,gameWon=false,firstClick=true,timer=null,secondsElapsed=0,sessionRestarts=0;
+let lastDeathPos=null,deathCountSamePos=0,canvas,ctx,CELL_SIZE=44;
+const S_HIDDEN=0,S_OPEN=1,S_FLAG=2,S_QUESTION=3;
+const LEVEL_CONFIG={1:{rows:10,cols:10,mines:3},2:{rows:300,cols:300,mines:27900}};
+
+const taunts={
+  death_precise:["90000格你不点，非要点唯一那颗雷是吧？","这格子有什么魔力？你就是要点它。","雷：感谢光临。"],
+  death_early:["坚持3秒，刷新你的最低纪录。","这局可以申请速通记录吗？","开局即巅峰，死亡即终点。"],
+  death_high:["差一点？差一点就是差一生。","恭喜你，体验了最痛的死法。","90%+暴毙，比输在起跑线更惨。"],
+  death_same:["记吃不记打，系统都替你尴尬。","你是故意踩这里的吧？","同一个地方第三次……佩服。"],
+  r5:["还来？你这毅力用在哪不行。","第5次了，还记得规则吗？"],
+  r20:["你是真的不服输，还是单纯记仇？","20次了，地雷表示已经认识你了。"],
+  r50:["全单机玩家，你最执着。","50次重开，这已经是信仰了。"],
+  r100:["100次，你是真的来这里住的吗？"],
+  win:["300×300？有手就行。","你们随便虐，我已经通关了。","扫雷人中龙凤，非你莫属。"],
+  stats_low:["你的人生高度，停留在{pct}%。"],
+  stats_deaths:["建议授予：扫雷人体排雷器称号。"],
+  stats_time:["休息一下？不，你不会听的。"]
+};
+function pick(a){return a[Math.floor(Math.random()*a.length)]}
+
+function getDeathTaunt(prog,t){
+  if(lastDeathPos&&deathCountSamePos>=2)return pick(taunts.death_same);
+  if(t<5)return pick(taunts.death_early);
+  if(prog>=0.9)return pick(taunts.death_high);
+  return pick(taunts.death_precise);
+}
+function getRestartTaunt(n){
+  if(n>=100)return pick(taunts.r100);
+  if(n>=50)return pick(taunts.r50);
+  if(n>=20)return pick(taunts.r20);
+  if(n>=5)return pick(taunts.r5);
+  return null;
+}
+function getStatsTaunt(){
+  if(persistData.level2Cleared)return"🏆 "+pick(taunts.win)+" — 你已通关，此生无憾。";
+  if(persistData.totalDeaths>500)return pick(taunts.stats_deaths);
+  if((persistData.totalPlayTime||0)>7200)return pick(taunts.stats_time);
+  const p=(persistData.bestProgress*100).toFixed(1);
+  return pick(taunts.stats_low).replace('{pct}',p);
+}
+
+function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active')}
+
+function openMenu(){
+  stopTimer();
+  const l2c=document.getElementById('menuLevel2Card');
+  const l2t=document.getElementById('menuLevel2Title');
+  if(persistData.level1Cleared){
+    l2c.style.opacity='1';l2c.style.cursor='pointer';
+    l2t.textContent='第二关';l2t.style.color='';
+    l2c.onclick=()=>menuStartGame(2);
+  } else {
+    l2c.style.opacity='0.4';l2c.style.cursor='not-allowed';
+    l2t.textContent='第二关 🔒';l2t.style.color='var(--text2)';
+    l2c.onclick=()=>showToast('通过第一关后解锁');
+  }
+  document.getElementById('menuModal').classList.add('active');
+}
+function menuStartGame(lv){document.getElementById('menuModal').classList.remove('active');startGame(lv)}
+function menuShowStats(){document.getElementById('menuModal').classList.remove('active');renderStats();showScreen('statsScreen');document.getElementById('statsBackBtn').onclick=()=>{showScreen('gameScreen')}}
+function showStatsFromGame(){renderStats();showScreen('statsScreen');document.getElementById('statsBackBtn').onclick=()=>showScreen('gameScreen')}
+
+function startGame(level){
+  currentLevel=level;
+  const cfg=LEVEL_CONFIG[level];
+  rows=cfg.rows;cols=cfg.cols;totalMines=cfg.mines;
+  totalSafe=rows*cols-totalMines;
+  CELL_SIZE=level===1?44:18;
+  opened=0;flagged=0;gameOver=false;gameWon=false;firstClick=true;
+  sessionRestarts=0;secondsElapsed=0;
+  if(level===1){lastDeathPos=null;deathCountSamePos=0}
+  if(level===2){persistData.totalAttempts++;saveData(persistData)}
+  board=[];
+  for(let r=0;r<rows;r++){board.push([]);for(let c=0;c<cols;c++)board[r].push({mine:false,state:S_HIDDEN,num:0})}
+  const badge=document.getElementById('levelBadge');
+  badge.textContent=level===1?'第一关 · 新手':'第二关 · 地狱';
+  badge.className='level-badge '+(level===1?'easy':'hard');
+  updateHeader();updateProgress();stopTimer();
+  canvas=document.getElementById('boardCanvas');ctx=canvas.getContext('2d');
+  canvas.width=cols*CELL_SIZE;canvas.height=rows*CELL_SIZE;
+  canvas.oncontextmenu=e=>e.preventDefault();
+  canvas.onmousedown=handleMouseDown;
+  drawBoard();
+  showScreen('gameScreen');
+  document.getElementById('gameArea').scrollTop=0;
+  document.getElementById('gameArea').scrollLeft=0;
+}
+
+function placeMines(sr,sc){
+  const forbidden=new Set();
+  if(currentLevel===1){for(let dr=-2;dr<=2;dr++)for(let dc=-2;dc<=2;dc++){const nr=sr+dr,nc=sc+dc;if(nr>=0&&nr<rows&&nc>=0&&nc<cols)forbidden.add(nr*cols+nc)}}
+  else forbidden.add(sr*cols+sc);
+  const avail=[];
+  for(let i=0;i<rows*cols;i++)if(!forbidden.has(i))avail.push(i);
+  for(let i=0;i<totalMines&&i<avail.length;i++){const j=i+Math.floor(Math.random()*(avail.length-i));[avail[i],avail[j]]=[avail[j],avail[i]];const idx=avail[i];board[Math.floor(idx/cols)][idx%cols].mine=true}
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){if(board[r][c].mine)continue;let n=0;for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){if(dr===0&&dc===0)continue;const nr=r+dr,nc=c+dc;if(nr>=0&&nr<rows&&nc>=0&&nc<cols&&board[nr][nc].mine)n++}board[r][c].num=n}
+}
+
+const NUMS=['','#4ecca3','#45b7d1','#ff6b6b','#9b59b6','#e74c3c','#1abc9c','#f39c12','#95a5a6'];
+function drawBoard(){
+  if(!ctx)return;
+  ctx.fillStyle='#08080f';ctx.fillRect(0,0,canvas.width,canvas.height);
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++)drawCell(r,c);
+}
+function drawCell(r,c){
+  const cs=CELL_SIZE,x=c*cs,y=r*cs,cell=board[r][c],p=cs>20?1:0.5;
+  let bg=cell.state===S_OPEN?(gameOver&&cell.mine?'#3a0a0a':'#0e0e18'):'#1a1a28';
+  ctx.fillStyle=bg;ctx.fillRect(x+p,y+p,cs-p*2,cs-p*2);
+  ctx.strokeStyle=cell.state===S_OPEN?'#1a1a28':'#2a2a40';ctx.lineWidth=0.5;
+  ctx.strokeRect(x+p+0.5,y+p+0.5,cs-p*2-1,cs-p*2-1);
+  const cx=x+cs/2,cy=y+cs/2,fs=Math.max(10,Math.floor(cs*0.5));
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  if(cell.state===S_OPEN){
+    if(cell.mine){ctx.font=`${Math.floor(cs*0.6)}px serif`;ctx.fillText('💣',cx,cy)}
+    else if(cell.num>0){ctx.font=`bold ${fs}px "Share Tech Mono",monospace`;ctx.fillStyle=NUMS[cell.num];ctx.fillText(cell.num,cx,cy+1)}
+  } else if(cell.state===S_FLAG){ctx.font=`${Math.floor(cs*0.6)}px serif`;ctx.fillText('🚩',cx,cy)}
+  else if(cell.state===S_QUESTION){ctx.font=`bold ${fs}px "Share Tech Mono",monospace`;ctx.fillStyle='#8888aa';ctx.fillText('?',cx,cy+1)}
+  else if(gameOver&&cell.mine){ctx.font=`${Math.floor(cs*0.6)}px serif`;ctx.fillStyle='rgba(230,57,70,0.5)';ctx.fillText('💣',cx,cy)}
+}
+
+let rightMouseDown=false;
+function handleMouseDown(e){
+  if(gameOver||gameWon)return;e.preventDefault();
+  const pos=getCellFromEvent(e);if(!pos)return;
+  if(e.button===2){rightMouseDown=true;handleRightClick(pos.r,pos.c)}
+  else if(e.button===0){
+    rightMouseDown=false;
+    canvas.onmouseup=(ev)=>{
+      canvas.onmouseup=null;
+      if(gameOver||gameWon)return;
+      const p2=getCellFromEvent(ev);if(!p2)return;
+      if(p2.r===pos.r&&p2.c===pos.c){
+        if(rightMouseDown)chordOpen(pos.r,pos.c);
+        else leftClick(pos.r,pos.c);
+      }
+      rightMouseDown=false;
+    };
+  }
+}
+function getCellFromEvent(e){
+  const rect=canvas.getBoundingClientRect();
+  const sx=canvas.width/rect.width,sy=canvas.height/rect.height;
+  const c=Math.floor((e.clientX-rect.left)*sx/CELL_SIZE);
+  const r=Math.floor((e.clientY-rect.top)*sy/CELL_SIZE);
+  if(r<0||r>=rows||c<0||c>=cols)return null;
+  return{r,c};
+}
+function handleRightClick(r,c){
+  const cell=board[r][c];if(cell.state===S_OPEN)return;
+  if(cell.state===S_HIDDEN){cell.state=S_FLAG;flagged++;if(currentLevel===2)persistData.totalFlags++}
+  else if(cell.state===S_FLAG){cell.state=S_QUESTION;flagged--}
+  else cell.state=S_HIDDEN;
+  updateHeader();drawCell(r,c);
+}
+function chordOpen(r,c){
+  const cell=board[r][c];if(cell.state!==S_OPEN||cell.num===0)return;
+  let fc=0;const nb=[];
+  for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){if(dr===0&&dc===0)continue;const nr=r+dr,nc=c+dc;if(nr>=0&&nr<rows&&nc>=0&&nc<cols){if(board[nr][nc].state===S_FLAG)fc++;else if(board[nr][nc].state!==S_OPEN)nb.push({r:nr,c:nc})}}
+  if(fc===cell.num)nb.forEach(p=>openCell(p.r,p.c));
+}
+function leftClick(r,c){
+  const cell=board[r][c];if(cell.state===S_FLAG||cell.state===S_OPEN)return;
+  if(firstClick){firstClick=false;placeMines(r,c);startTimer()}
+  openCell(r,c);
+}
+function openCell(r,c){
+  if(gameOver)return;
+  const cell=board[r][c];if(cell.state===S_OPEN||cell.state===S_FLAG)return;
+  cell.state=S_OPEN;drawCell(r,c);
+  if(cell.mine){triggerDeath(r,c);return}
+  opened++;updateHeader();updateProgress();
+  if(cell.num===0)for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){if(dr===0&&dc===0)continue;const nr=r+dr,nc=c+dc;if(nr>=0&&nr<rows&&nc>=0&&nc<cols)openCell(nr,nc)}
+  checkWin();
+}
+
+function triggerDeath(r,c){
+  gameOver=true;stopTimer();
+  const ov=document.getElementById('explosionOverlay');ov.classList.add('active');setTimeout(()=>ov.classList.remove('active'),400);
+  drawBoard();
+  ctx.fillStyle='rgba(230,57,70,0.7)';ctx.fillRect(c*CELL_SIZE,r*CELL_SIZE,CELL_SIZE,CELL_SIZE);
+  if(currentLevel===2){
+    persistData.totalDeaths++;
+    const prog=opened/totalSafe;
+    if(prog>persistData.bestProgress)persistData.bestProgress=prog;
+    if(opened>persistData.bestOpenedCells)persistData.bestOpenedCells=opened;
+    if(secondsElapsed>persistData.longestTime)persistData.longestTime=secondsElapsed;
+    const bR=Math.floor(r/15),bC=Math.floor(c/10),key=bR*30+bC;
+    if(!persistData.deathMap)persistData.deathMap=[];
+    persistData.deathMap[key]=(persistData.deathMap[key]||0)+1;
+    if(lastDeathPos&&lastDeathPos.r===r&&lastDeathPos.c===c)deathCountSamePos++;
+    else{deathCountSamePos=1;lastDeathPos={r,c}}
+    persistData.totalPlayTime=(persistData.totalPlayTime||0)+secondsElapsed;
+    saveData(persistData);
+  }
+  const prog=opened/totalSafe;
+  setTimeout(()=>{
+    document.getElementById('deathTitle').textContent=currentLevel===1?'哦，踩雷了':'💥 你死了';
+    document.getElementById('deathTaunt').textContent=getDeathTaunt(prog,secondsElapsed);
+    document.getElementById('deathStats').innerHTML=`<div class="mini-stat"><span class="mini-stat-label">本局进度</span><span class="mini-stat-value">${(prog*100).toFixed(2)}%</span></div><div class="mini-stat"><span class="mini-stat-label">翻开格子</span><span class="mini-stat-value">${opened}</span></div><div class="mini-stat"><span class="mini-stat-label">坚持时间</span><span class="mini-stat-value">${formatTime(secondsElapsed)}</span></div><div class="mini-stat"><span class="mini-stat-label">本局重开</span><span class="mini-stat-value">${sessionRestarts}</span></div>`;
+    document.getElementById('deathModal').classList.add('active');
+  },400);
+}
+
+function checkWin(){
+  if(opened!==totalSafe)return;
+  gameWon=true;stopTimer();
+  if(currentLevel===1){persistData.level1Cleared=true;saveData(persistData)}
+  if(currentLevel===2){persistData.level2Cleared=true;persistData.bestProgress=1;persistData.totalPlayTime=(persistData.totalPlayTime||0)+secondsElapsed;saveData(persistData)}
+  const taunt=currentLevel===2?pick(taunts.win):'这就过了？真正的挑战在第二关。';
+  document.getElementById('winTitle').textContent=currentLevel===1?'通过第一关！':'🏆 你通关了！！！';
+  document.getElementById('winTaunt').textContent=taunt;
+  document.getElementById('winStats').innerHTML=`<div class="mini-stat"><span class="mini-stat-label">总用时</span><span class="mini-stat-value">${formatTime(secondsElapsed)}</span></div><div class="mini-stat"><span class="mini-stat-label">翻开格子</span><span class="mini-stat-value">${opened}</span></div><div class="mini-stat"><span class="mini-stat-label">标记地雷</span><span class="mini-stat-value">${flagged}</span></div><div class="mini-stat"><span class="mini-stat-label">重开次数</span><span class="mini-stat-value">${sessionRestarts}</span></div>`;
+  document.getElementById('winBtns').innerHTML=currentLevel===1
+    ?`<button class="btn-primary" onclick="closeWinStartLevel2()">进入第二关 💀</button><button class="btn-secondary" onclick="closeWinMenu()">返回菜单</button>`
+    :`<button class="btn-primary" onclick="closeWinMenu()">返回菜单</button>`;
+  document.getElementById('winModal').classList.add('active');
+}
+
+function confirmRestart(){
+  document.getElementById('deathModal').classList.remove('active');
+  sessionRestarts++;
+  persistData.currentConsecutiveRestarts=(persistData.currentConsecutiveRestarts||0)+1;
+  if(persistData.currentConsecutiveRestarts>persistData.maxConsecutiveRestarts)persistData.maxConsecutiveRestarts=persistData.currentConsecutiveRestarts;
+  if(currentLevel===2)saveData(persistData);
+  const t=getRestartTaunt(sessionRestarts);if(t)showToast(t);
+  startGame(currentLevel);
+}
+function restartGame(){document.getElementById('deathModal').classList.remove('active');startGame(currentLevel)}
+function closeDeathModal(){document.getElementById('deathModal').classList.remove('active')}
+function closeWinMenu(){document.getElementById('winModal').classList.remove('active');openMenu()}
+function closeWinStartLevel2(){document.getElementById('winModal').classList.remove('active');startGame(2)}
+
+function startTimer(){stopTimer();secondsElapsed=0;timer=setInterval(()=>{secondsElapsed++;document.getElementById('timerDisplay').textContent=formatTime(secondsElapsed)},1000)}
+function stopTimer(){if(timer){clearInterval(timer);timer=null}}
+function formatTime(s){return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')}
+function updateHeader(){document.getElementById('mineCounter').textContent=totalMines-flagged;document.getElementById('openedCounter').textContent=opened;document.getElementById('restartCounter').textContent=sessionRestarts}
+function updateProgress(){const p=totalSafe>0?opened/totalSafe:0;const s=(p*100).toFixed(2)+'%';document.getElementById('progressFill').style.width=s;document.getElementById('progressPct').textContent=s}
+
+let toastTimer=null;
+function showToast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');if(toastTimer)clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),3500)}
+
+function renderStats(){
+  document.getElementById('statsTaunt').textContent=getStatsTaunt();
+  const d=persistData;
+  document.getElementById('statsGrid').innerHTML=`
+    <div class="stat-card"><span class="stat-card-label">第二关总尝试次数</span><span class="stat-card-value accent">${d.totalAttempts}</span></div>
+    <div class="stat-card"><span class="stat-card-label">累计踩雷次数</span><span class="stat-card-value accent">${d.totalDeaths}</span></div>
+    <div class="stat-card"><span class="stat-card-label">单局最高翻开格子</span><span class="stat-card-value safe">${d.bestOpenedCells}</span></div>
+    <div class="stat-card"><span class="stat-card-label">最高进度</span><span class="stat-card-value safe">${(d.bestProgress*100).toFixed(2)}%</span></div>
+    <div class="stat-card"><span class="stat-card-label">最长坚持时间</span><span class="stat-card-value">${formatTime(d.longestTime)}</span></div>
+    <div class="stat-card"><span class="stat-card-label">历史最高连续重开</span><span class="stat-card-value gold">${d.maxConsecutiveRestarts}</span></div>
+    <div class="stat-card"><span class="stat-card-label">插旗总数</span><span class="stat-card-value">${d.totalFlags}</span></div>
+    <div class="stat-card"><span class="stat-card-label">累计游戏时间</span><span class="stat-card-value">${formatTime(d.totalPlayTime||0)}</span></div>
+    <div class="stat-card"><span class="stat-card-label">第二关通关</span><span class="stat-card-value ${d.level2Cleared?'gold':'accent'}">${d.level2Cleared?'已通关 🏆':'未通关'}</span></div>`;
+  renderHeatmap();
+}
+function renderHeatmap(){
+  const hc=document.getElementById('heatmapCanvas'),hx=hc.getContext('2d');
+  hc.width=300;hc.height=200;
+  hx.fillStyle='#0a0a0f';hx.fillRect(0,0,300,200);
+  const dm=persistData.deathMap||[];let mx=1;dm.forEach(v=>{if(v>mx)mx=v});
+  for(let row=0;row<20;row++)for(let col=0;col<30;col++){const v=dm[row*30+col]||0;if(v>0){const i=v/mx;hx.fillStyle=`rgba(${Math.floor(230*i)},${Math.floor(57*i)},${Math.floor(70*i)},${0.2+i*0.8})`;hx.fillRect(col*10+1,row*10+1,9,9)}}
+  hx.strokeStyle='rgba(255,255,255,0.05)';hx.lineWidth=0.5;
+  for(let i=0;i<=30;i++){hx.beginPath();hx.moveTo(i*10,0);hx.lineTo(i*10,200);hx.stroke()}
+  for(let i=0;i<=20;i++){hx.beginPath();hx.moveTo(0,i*10);hx.lineTo(300,i*10);hx.stroke()}
+  hx.fillStyle='rgba(136,136,170,0.6)';hx.font='10px monospace';hx.textAlign='left';hx.fillText('300×300 踩雷热区分布',6,14);
+}
+
+window.addEventListener('load',()=>startGame(1));
+document.addEventListener('contextmenu',e=>{if(e.target===canvas)e.preventDefault()});
+</script>
+</body>
+</html>
